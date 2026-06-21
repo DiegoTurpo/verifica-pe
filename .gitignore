@@ -1,0 +1,24 @@
+# Secretos — NUNCA subir
+.env
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Datos intermedios / descargas crudas (la muestra .duckdb SÍ se versiona)
+data/raw/
+*.tmp
+
+# Sistema operativo / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
