@@ -21,7 +21,7 @@ import os
 from dataclasses import dataclass, field
 
 _SEV = {"VERDE": 0, "AMBAR": 1, "ROJO": 2}
-MODELO = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+_MODELO_DEFAULT = "gemini-2.0-flash"  # configurable por la variable de entorno GEMINI_MODEL
 
 _CRITERIOS = """\
 Criterios del semáforo de riesgo:
@@ -115,7 +115,7 @@ def generar_reporte(rep) -> ReporteIA:
 
         client = genai.Client(api_key=key)
         resp = client.models.generate_content(
-            model=MODELO,
+            model=os.environ.get("GEMINI_MODEL", _MODELO_DEFAULT),
             contents=instruccion,
             config=types.GenerateContentConfig(
                 system_instruction=sistema,

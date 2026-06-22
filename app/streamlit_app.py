@@ -21,8 +21,9 @@ st.set_page_config(page_title="Verifica", page_icon="🛡️", layout="centered"
 # En Streamlit Cloud la API key de Gemini vive en Secrets; la exponemos como variable
 # de entorno para que core.reporte la lea (sin acoplar el core a Streamlit).
 try:
-    if "GEMINI_API_KEY" in st.secrets:
-        os.environ.setdefault("GEMINI_API_KEY", st.secrets["GEMINI_API_KEY"])
+    for _clave in ("GEMINI_API_KEY", "GEMINI_MODEL"):
+        if _clave in st.secrets:
+            os.environ.setdefault(_clave, str(st.secrets[_clave]))
 except Exception:
     pass
 
