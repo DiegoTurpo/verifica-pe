@@ -11,3 +11,7 @@ lxml>=5.0
 
 # Tests
 pytest>=8.0
+
+# EDA (notebooks/exploracion.ipynb)
+matplotlib>=3.8
+jupyter>=1.0
