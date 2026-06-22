@@ -1,0 +1,3 @@
+# Dependencias de desarrollo (no se necesitan para el demo desplegado)
+-r requirements.txt
+pytest>=8.0
