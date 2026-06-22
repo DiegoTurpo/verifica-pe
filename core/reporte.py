@@ -159,22 +159,3 @@ def generar_reporte(rep) -> ReporteIA:
         )
     except Exception as e:
         return _fallback(rep, f"reglas (error Gemini: {type(e).__name__}: {str(e)[:140]})")
-
-
-def listar_modelos() -> list[str]:
-    """Diagnóstico: modelos que la API key puede usar (que soportan generateContent)."""
-    key = os.environ.get("GEMINI_API_KEY")
-    if not key:
-        return ["(no hay GEMINI_API_KEY cargada)"]
-    try:
-        from google import genai
-
-        client = genai.Client(api_key=key)
-        nombres = []
-        for m in client.models.list():
-            acciones = list(getattr(m, "supported_actions", []) or [])
-            if (not acciones) or ("generateContent" in acciones):
-                nombres.append(m.name.replace("models/", ""))
-        return nombres or ["(la key no tiene modelos con generateContent)"]
-    except Exception as e:
-        return [f"(error listando: {type(e).__name__}: {str(e)[:140]})"]
