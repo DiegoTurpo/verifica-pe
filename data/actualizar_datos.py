@@ -40,7 +40,9 @@ URL_SSCO = "https://www.sunat.gob.pe/padronesnotificaciones/ssco/sujesincapacida
 # Fuente OSCE/OECE: pega aquí la URL DIRECTA del CSV (botón "Ir al recurso" del dataset
 # "Proveedores sancionados con inhabilitación vigente" en datosabiertos.gob.pe).
 # Si queda vacía, se usa el último CSV descargado en data/raw/osce.csv.
-URL_OSCE = ""
+# URL estable del adjunto en Confluence (por ID de página + nombre): sigue el
+# redirect al media de Atlassian y trae el CSV fresco (OSCE lo reemplaza semanal).
+URL_OSCE = "https://osce-gob-pe.atlassian.net/wiki/download/attachments/106889269/sancionados.csv"
 
 # NOTA_OSCE: el OSCE pasó a ser OECE y sus URLs de consulta antiguas ya no responden.
 # La relación de proveedores sancionados/inhabilitados se publica en la Plataforma
