@@ -74,8 +74,8 @@ def _texto_reglas(rep) -> str:
     return f"{cabecera}\n{bullets}"
 
 
-def _fallback(rep) -> ReporteIA:
-    return ReporteIA(nivel=rep.nivel, texto=_texto_reglas(rep), motor="reglas (fallback)")
+def _fallback(rep, motivo: str = "reglas (fallback)") -> ReporteIA:
+    return ReporteIA(nivel=rep.nivel, texto=_texto_reglas(rep), motor=motivo)
 
 
 def _red_seguridad(rep, nivel_ia: str) -> str:
@@ -93,7 +93,7 @@ def generar_reporte(rep) -> ReporteIA:
 
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
-        return _fallback(rep)
+        return _fallback(rep, "reglas (no se cargó GEMINI_API_KEY)")
 
     try:
         from google import genai
@@ -131,5 +131,5 @@ def generar_reporte(rep) -> ReporteIA:
             observaciones=[str(o) for o in (data.get("observaciones") or [])][:5],
             motor="gemini",
         )
-    except Exception:
-        return _fallback(rep)
+    except Exception as e:
+        return _fallback(rep, f"reglas (error Gemini: {type(e).__name__}: {str(e)[:140]})")
