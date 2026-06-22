@@ -1,26 +1,27 @@
 """Verifica — interfaz Streamlit (demo en vivo).
 
-Ingresa un RUC → el motor (`core.verificador`) lo cruza con las 3 fuentes
-públicas y pinta el semáforo de riesgo + las señales transparentes que lo
-explican. La UI solo invoca al motor y pinta (lógica desacoplada).
+Ingresa un RUC (o una foto de factura) → el motor (`core.verificador`) lo cruza
+con las 3 fuentes públicas y pinta el semáforo de riesgo + el reporte de Gemini.
+La UI solo invoca al motor y pinta (lógica desacoplada).
 """
 import os
 import sys
 
 # En Streamlit Cloud el script corre desde app/, así que agregamos la raíz del
-# repo a sys.path para poder importar el paquete `core`.
+# repo a sys.path para poder importar los paquetes `core` y `ai`.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
 
 from ai.ocr import extraer_ruc
-from core.reporte import generar_reporte, listar_modelos
+from core.reporte import generar_reporte
 from core.verificador import verificar_ruc
 
-st.set_page_config(page_title="Verifica", page_icon="🛡️", layout="centered")
+st.set_page_config(page_title="Verifica — riesgo de proveedores", page_icon="🛡️",
+                   layout="centered")
 
-# En Streamlit Cloud la API key de Gemini vive en Secrets; la exponemos como variable
-# de entorno para que core.reporte la lea (sin acoplar el core a Streamlit).
+# En Streamlit Cloud la API key vive en Secrets; la exponemos como variable de
+# entorno para que core.reporte / ai.ocr la lean (sin acoplar el core a Streamlit).
 try:
     for _clave in ("GEMINI_API_KEY", "GEMINI_MODEL"):
         if _clave in st.secrets:
@@ -28,15 +29,41 @@ try:
 except Exception:
     pass
 
-# RUCs REALES de la muestra, uno por color, para el demo en vivo.
+st.markdown("""<style>
+#MainMenu, footer {visibility: hidden;}
+.block-container {padding-top: 2.2rem;}
+.hero {background: linear-gradient(135deg,#00796b,#004d40); color:#fff;
+       padding:26px 30px; border-radius:16px; margin-bottom:18px;}
+.hero h1 {margin:0; font-size:2.2rem; font-weight:800;}
+.hero p {margin:.55rem 0 0; font-size:1.02rem; line-height:1.5; opacity:.96;}
+.veredicto {border-radius:14px; padding:18px 22px; margin:4px 0;}
+.veredicto .vtag {font-size:.8rem; font-weight:800; letter-spacing:.07em;}
+.veredicto .vname {font-size:1.5rem; font-weight:800; color:#1f2937; margin-top:3px; line-height:1.2;}
+.veredicto .vruc {font-size:.9rem; color:#6b7280; margin-top:2px;}
+.reco {background:#e3f2fd; border-left:6px solid #1565c0; border-radius:10px;
+       padding:12px 16px; margin:12px 0; font-size:1.02rem;}
+</style>""", unsafe_allow_html=True)
+
+st.markdown(
+    '<div class="hero"><h1>🛡️ Verifica</h1>'
+    '<p>¿La empresa con la que vas a hacer negocios es <b>legítima o un riesgo de '
+    'fraude</b>? Ingresa un RUC y lo cruzamos con las empresas fantasma de SUNAT '
+    '(SSCO), el padrón RUC y los sancionados del OSCE — en segundos.</p></div>',
+    unsafe_allow_html=True)
+
+# RUCs REALES de la muestra, uno por color, para conducir el demo en vivo.
 EJEMPLOS = [
     ("🔴 Empresa fantasma", "20607648272"),
     ("🔴 No habido / OSCE", "20100994128"),
     ("🟡 Precaución", "10198565470"),
     ("🟢 Sin alertas", "10452159428"),
 ]
-
 ICONO = {"ROJO": "🔴", "AMBAR": "🟡", "VERDE": "🟢"}
+_ESTILO = {
+    "ROJO": ("#fdecea", "#c62828", "🔴", "RIESGO ALTO"),
+    "AMBAR": ("#fff4e5", "#e65100", "🟡", "PRECAUCIÓN"),
+    "VERDE": ("#e8f5e9", "#2e7d32", "🟢", "SIN ALERTAS"),
+}
 
 
 def _mostrar(rep, reporte) -> None:
@@ -45,28 +72,37 @@ def _mostrar(rep, reporte) -> None:
         st.info("⚠️ El RUC debe tener **11 dígitos** numéricos.")
         return
     if nivel == "DESCONOCIDO":
-        st.info(
-            f"⚪ No encontramos el RUC **{rep.ruc}** en la muestra del demo. "
-            "En producción se consultaría el padrón completo en la nube.")
+        st.info(f"⚪ No encontramos el RUC **{rep.ruc}** en la muestra del demo. "
+                "En producción se consultaría el padrón completo en la nube.")
         return
 
+    bg, col, icono, etiqueta = _ESTILO[nivel]
     titular = rep.razon_social or f"RUC {rep.ruc}"
-    if nivel == "ROJO":
-        st.error(f"🔴 **RIESGO ALTO** — {titular}")
-    elif nivel == "AMBAR":
-        st.warning(f"🟡 **PRECAUCIÓN** — {titular}")
-    else:
-        st.success(f"🟢 **SIN ALERTAS** — {titular}")
+    st.markdown(
+        f'<div class="veredicto" style="background:{bg};border-left:10px solid {col};">'
+        f'<div class="vtag" style="color:{col};">{icono} {etiqueta}</div>'
+        f'<div class="vname">{titular}</div>'
+        f'<div class="vruc">RUC {rep.ruc}</div></div>',
+        unsafe_allow_html=True)
+
+    # Hechos clave de un vistazo.
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Estado (SUNAT)", (rep.estado or "—").title())
+    c2.metric("Condición", (rep.condicion or "—").title())
+    c3.metric("En SSCO", "Sí" if rep.en_ssco else "No")
+    c4.metric("Sanciones OSCE", len(rep.osce))
 
     # Reporte en lenguaje claro (Gemini; o reglas si no hay key / falla).
     st.markdown(reporte.texto)
+
+    if reporte.recomendacion:
+        st.markdown(f'<div class="reco">💡 <b>Qué hacer:</b> {reporte.recomendacion}</div>',
+                    unsafe_allow_html=True)
+
     if reporte.observaciones:
         st.markdown("**Observaciones adicionales:**")
         for o in reporte.observaciones:
             st.markdown(f"- {o}")
-
-    if reporte.recomendacion:
-        st.info(f"💡 **Qué hacer:** {reporte.recomendacion}")
 
     try:
         from core.pdf import generar_pdf
@@ -76,31 +112,16 @@ def _mostrar(rep, reporte) -> None:
     except Exception:
         pass
 
-    with st.expander("Criterios detectados y fuentes"):
+    with st.expander("🔎 Criterios detectados y fuentes"):
         for s in rep.senales:
             st.markdown(
                 f"{ICONO.get(s.nivel, '•')} {s.mensaje}  \n"
                 f"<span style='color:gray;font-size:0.8em'>fuente: {s.fuente}</span>",
                 unsafe_allow_html=True)
-        st.markdown("---")
-        st.markdown(f"- **RUC:** {rep.ruc}")
-        if rep.estado:
-            st.markdown(f"- **Estado (SUNAT):** {rep.estado}")
-        if rep.condicion:
-            st.markdown(f"- **Condición de domicilio:** {rep.condicion}")
-        if rep.departamento:
-            st.markdown(f"- **Departamento:** {rep.departamento}")
-        st.markdown(f"- **En lista SSCO:** {'sí' if rep.en_ssco else 'no'}")
-        st.markdown(f"- **Sanciones OSCE registradas:** {len(rep.osce)}")
         st.caption(f"Reporte generado por: {reporte.motor}")
 
 
-st.title("🛡️ Verifica")
-st.markdown(
-    "¿La empresa con la que vas a hacer negocios es **legítima o un riesgo de "
-    "fraude**? Ingresa un RUC y lo cruzamos con las empresas fantasma de SUNAT "
-    "(**SSCO**), el **padrón RUC** y los sancionados del **OSCE** — en segundos.")
-
+# --------------------------------------------------------------- entrada
 if "ruc" not in st.session_state:
     st.session_state.ruc = ""
 
@@ -147,14 +168,7 @@ if ruc and ruc.strip():
     rep = verificar_ruc(ruc)
     _mostrar(rep, generar_reporte(rep))
 
-with st.expander("🔧 Diagnóstico Gemini"):
-    st.caption("Lista los modelos que tu API key puede usar, para fijar GEMINI_MODEL.")
-    if st.button("Listar modelos disponibles para mi key"):
-        for nombre in listar_modelos():
-            st.markdown(f"- `{nombre}`")
-
 st.divider()
 st.caption(
     "Datos: SUNAT (lista SSCO y padrón RUC) y OSCE/OECE. El demo corre sobre una "
-    "muestra cacheada. · "
-    "[Repositorio](https://github.com/DiegoTurpo/verifica-pe)")
+    "muestra cacheada. · [Repositorio](https://github.com/DiegoTurpo/verifica-pe)")
