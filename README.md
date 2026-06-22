@@ -72,6 +72,7 @@ verifica-pe/
 ├── ai/         # OCR con Gemini multimodal (ocr.py)
 ├── data/       # actualizar_datos.py (offline) + verifica.duckdb (muestra ligera)
 ├── docs/       # pitch_deck.pdf, arquitectura.png, video_demo.md, research/ (evidencia)
+├── notebooks/  # exploracion.ipynb (EDA de las 3 fuentes)
 └── tests/      # pruebas del motor (pytest)
 ```
 
