@@ -1,10 +1,4 @@
-# Verifica — dependencias (deploy ligero para Streamlit Community Cloud)
+# Dependencias del DEMO desplegado (Streamlit Community Cloud) — mantener ligero.
+# El app solo necesita leer la base cacheada y pintar el semáforo.
 streamlit>=1.40
 duckdb>=1.1
-google-genai>=1.0
-pandas>=2.2
-requests>=2.32
-beautifulsoup4>=4.12
-lxml>=5.0
-python-dotenv>=1.0
-pillow>=10.4
