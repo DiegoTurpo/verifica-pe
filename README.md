@@ -53,6 +53,16 @@ Motor de verificación **desacoplado** (Python puro): `verificar_ruc(ruc) -> Rep
 
 > Las clases mostraron que el OCR/LLM puede implementarse con distintas APIs (Claude, Gemini, etc.). Se eligió **Gemini Flash** por su tier gratuito, suficiente para el demo, manteniendo el deploy ligero.
 
+## Desarrollo asistido por IA
+
+Este proyecto se construyó con **Claude Code** (el agente de código de Anthropic) como
+copiloto técnico, bajo la dirección del founder. La IA ayudó a escribir y refactorizar el
+motor (`core/`), la ingesta (`data/actualizar_datos.py`), la app (`app/`), el OCR
+(`ai/ocr.py`), los tests y la documentación. **Todas las decisiones de producto,
+arquitectura, fuentes de datos y reglas del semáforo las tomó el founder**, que entiende y
+puede explicar o modificar cada parte del repo — las reglas de riesgo (`core/riesgo.py`)
+son transparentes y auditables justamente para poder sustentarlas.
+
 ## Cómo correr localmente
 
 ```bash
