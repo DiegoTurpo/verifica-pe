@@ -120,6 +120,22 @@ if foto is not None:
         else:
             st.warning("No pude leer un RUC en la imagen. Escríbelo manualmente abajo.")
 
+if st.button("Usar una factura de ejemplo (OCR)"):
+    _ruta = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                         "docs", "ejemplo_factura.png")
+    try:
+        with open(_ruta, "rb") as _f:
+            _datos = _f.read()
+        with st.spinner("Leyendo el RUC de la factura de ejemplo…"):
+            _ruc_ej = extraer_ruc(_datos, "image/png")
+        if _ruc_ej:
+            st.session_state.ruc = _ruc_ej
+            st.success(f"RUC detectado en la factura de ejemplo: **{_ruc_ej}**")
+        else:
+            st.warning("No se pudo leer el RUC de la imagen de ejemplo.")
+    except Exception:
+        st.warning("No encontré la factura de ejemplo.")
+
 ruc = st.text_input("RUC (11 dígitos)", key="ruc", max_chars=11,
                     placeholder="Ej. 20607648272")
 st.button("Verificar", type="primary", use_container_width=True)
