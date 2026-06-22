@@ -374,11 +374,14 @@ def muestrear_padron(ruta: str, rucs_objetivo=None, n_muestra: int = N_MUESTRA_P
         print("[padron] no se detectó la columna RUC -> uso ejemplos")
         return _padron_ejemplo()
 
+    usecols = [c for c in (c_ruc, mapa["razon"], mapa["estado"],
+                           mapa["condicion"], mapa["departamento"]) if c]
     stream, handle = _abrir_padron_texto(ruta)
     matched, verdes, n_verdes = [], [], 0
     try:
         for chunk in pd.read_csv(stream, sep=sep, dtype=str, header=0,
-                                 chunksize=chunksize, on_bad_lines="skip"):
+                                 chunksize=chunksize, on_bad_lines="skip",
+                                 usecols=usecols):
             chunk.columns = [c.strip() for c in chunk.columns]
             chunk[c_ruc] = chunk[c_ruc].astype(str).str.strip()
 
