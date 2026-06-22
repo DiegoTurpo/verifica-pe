@@ -5,7 +5,7 @@
 **Proyecto final — Data Science con Python (Universidad del Pacífico, 2026-I).**
 Founder (solo founder): **Diego Turpo de la Cruz**.
 
-- 🌐 **Demo en vivo:** _próximamente (Streamlit Community Cloud)_
+- 🌐 **Demo en vivo:** **<https://verifica-pe-decxqbd2bdqkst72icv6qr.streamlit.app>** — ingresa un RUC; no requiere instalar nada ni iniciar sesión.
 - 🎥 **Video demo (2-3 min):** _próximamente_
 - 📊 **Pitch deck:** _próximamente en [`docs/`](docs/)_
 
