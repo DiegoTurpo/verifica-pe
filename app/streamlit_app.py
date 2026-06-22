@@ -20,6 +20,13 @@ from core.verificador import verificar_ruc
 st.set_page_config(page_title="Verifica — riesgo de proveedores", page_icon="🛡️",
                    layout="centered")
 
+# En local, carga el .env si existe (en Cloud se usan los Secrets de Streamlit).
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
+
 # En Streamlit Cloud la API key vive en Secrets; la exponemos como variable de
 # entorno para que core.reporte / ai.ocr la lean (sin acoplar el core a Streamlit).
 try:
