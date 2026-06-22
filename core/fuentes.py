@@ -14,30 +14,38 @@ DB_PATH = os.path.join(
     "data", "verifica.duckdb",
 )
 
-_con: duckdb.DuckDBPyConnection | None = None
-
-
 def _conn() -> duckdb.DuckDBPyConnection:
-    """Conexión read-only perezosa y cacheada a la base."""
-    global _con
-    if _con is None:
-        _con = duckdb.connect(DB_PATH, read_only=True)
-    return _con
+    """Abre una conexión read-only NUEVA por consulta.
+
+    Read-only permite múltiples conexiones a la vez sobre el mismo archivo, así
+    que esto es seguro ante varios usuarios concurrentes en la URL pública
+    (una conexión compartida entre hilos de Streamlit NO sería thread-safe).
+    El archivo es de ~5 MB, abrirlo es muy rápido.
+    """
+    return duckdb.connect(DB_PATH, read_only=True)
 
 
 def _fila(sql: str, params: list) -> dict | None:
-    cur = _conn().execute(sql, params)
-    row = cur.fetchone()
-    if row is None:
-        return None
-    cols = [d[0] for d in cur.description]
-    return dict(zip(cols, row))
+    con = _conn()
+    try:
+        cur = con.execute(sql, params)
+        row = cur.fetchone()
+        if row is None:
+            return None
+        cols = [d[0] for d in cur.description]
+        return dict(zip(cols, row))
+    finally:
+        con.close()
 
 
 def _filas(sql: str, params: list) -> list[dict]:
-    cur = _conn().execute(sql, params)
-    cols = [d[0] for d in cur.description]
-    return [dict(zip(cols, r)) for r in cur.fetchall()]
+    con = _conn()
+    try:
+        cur = con.execute(sql, params)
+        cols = [d[0] for d in cur.description]
+        return [dict(zip(cols, r)) for r in cur.fetchall()]
+    finally:
+        con.close()
 
 
 def buscar_padron(ruc: str) -> dict | None:

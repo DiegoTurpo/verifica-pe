@@ -1,3 +1,13 @@
-# Dependencias de desarrollo (no se necesitan para el demo desplegado)
+# Dependencias de desarrollo: ingesta de datos (offline) + tests.
+# NO se necesitan en el demo desplegado.
 -r requirements.txt
+
+# Ingesta (data/actualizar_datos.py)
+pandas>=2.2
+openpyxl>=3.1
+requests>=2.32
+beautifulsoup4>=4.12
+lxml>=5.0
+
+# Tests
 pytest>=8.0
