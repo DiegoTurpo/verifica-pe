@@ -64,6 +64,14 @@ def _mostrar(rep, reporte) -> None:
         for o in reporte.observaciones:
             st.markdown(f"- {o}")
 
+    try:
+        from core.pdf import generar_pdf
+        st.download_button(
+            "📄 Descargar reporte en PDF", data=generar_pdf(rep, reporte),
+            file_name=f"verifica_{rep.ruc}.pdf", mime="application/pdf")
+    except Exception:
+        pass
+
     with st.expander("Criterios detectados y fuentes"):
         for s in rep.senales:
             st.markdown(
