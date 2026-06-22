@@ -65,6 +65,9 @@ def _mostrar(rep, reporte) -> None:
         for o in reporte.observaciones:
             st.markdown(f"- {o}")
 
+    if reporte.recomendacion:
+        st.info(f"💡 **Qué hacer:** {reporte.recomendacion}")
+
     try:
         from core.pdf import generar_pdf
         st.download_button(

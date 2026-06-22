@@ -61,6 +61,11 @@ def generar_pdf(rep, reporte) -> bytes:
             linea(f"- {o}")
         pdf.ln(1)
 
+    if getattr(reporte, "recomendacion", ""):
+        linea("Que hacer", size=11, estilo="B", h=7)
+        linea(reporte.recomendacion)
+        pdf.ln(1)
+
     linea("Criterios detectados y fuentes", size=11, estilo="B", h=7)
     for sgl in rep.senales:
         linea(f"- [{sgl.fuente}] {sgl.mensaje}")

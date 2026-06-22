@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 import re
 
-_MODELO_DEFAULT = "gemini-3.1-flash-lite"  # multimodal; configurable por GEMINI_MODEL
+_MODELO_DEFAULT = "gemini-2.0-flash-lite"  # multimodal; configurable por GEMINI_MODEL (alineado con core/reporte.py)
 _PREFIJOS_RUC = ("20", "10", "15", "16", "17")  # tipos de RUC más comunes
 
 
