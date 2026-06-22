@@ -21,7 +21,9 @@ Uso:
 """
 from __future__ import annotations
 
+import io
 import os
+import zipfile
 
 import duckdb
 import pandas as pd
@@ -49,6 +51,15 @@ RUTA_OSCE_LOCAL = os.path.join(RAW, "osce.csv")
 # casos VERDES de ejemplo (empresas activas/habidas). Para refrescar con data real,
 # descarga el padrón desde http://www.sunat.gob.pe/descargaPRR/mrc137_padron_reducido.html
 # y muestrea las columnas estado/condición.
+#
+# Candidatos donde buscar el padrón descargado manualmente (.zip o .txt):
+RUTA_PADRON_CANDIDATAS = [
+    os.path.join(RAW, "padron_reducido_ruc.txt"),
+    os.path.join(RAW, "padron.txt"),
+    os.path.join(RAW, "padron_reducido_RUC.zip"),
+    os.path.join(RAW, "padron.zip"),
+]
+N_MUESTRA_PADRON = 50_000
 
 
 # --------------------------------------------------------------------------- #
@@ -165,20 +176,20 @@ def _osce_ejemplo() -> pd.DataFrame:
     filas = [
         # Inhabilitación VIGENTE -> dispara ROJO
         (_mk_ruc("2050010001"), "CONSTRUCTORA EJEMPLO INHABILITADA S.A.C.",
-         "INHABILITACION", True, "2025-02-01", "2027-02-01",
-         "Resolución TCE N° 0001-2025"),
+         "INHABILITACION", "Contratar con el Estado estando impedido", True,
+         "2025-02-01", "2027-02-01", "Resolución TCE N° 0001-2025"),
         # Inhabilitación NO vigente (histórica) -> dispara ÁMBAR
         (_mk_ruc("2050010002"), "SERVICIOS EJEMPLO SANCIONADO E.I.R.L.",
-         "INHABILITACION", False, "2019-05-01", "2021-05-01",
-         "Resolución TCE N° 0123-2019"),
+         "INHABILITACION", "Presentar documentos falsos o adulterados", False,
+         "2019-05-01", "2021-05-01", "Resolución TCE N° 0123-2019"),
         # Multa vigente -> señal de precaución (ÁMBAR)
         (_mk_ruc("2050010003"), "COMERCIAL EJEMPLO MULTADO S.A.",
-         "MULTA", True, "2024-08-01", None,
-         "Resolución TCE N° 0456-2024"),
+         "MULTA", "Presentar información inexacta", True,
+         "2024-08-01", None, "Resolución TCE N° 0456-2024"),
     ]
     df = pd.DataFrame(
         filas,
-        columns=["ruc", "razon_social", "tipo_sancion", "vigente",
+        columns=["ruc", "razon_social", "tipo_sancion", "motivo", "vigente",
                  "fecha_inicio", "fecha_fin", "resolucion"],
     )
     df["origen"] = "ejemplo"
@@ -196,36 +207,49 @@ def descargar_osce() -> pd.DataFrame:
         return _osce_ejemplo()
 
     try:
+        # El CSV oficial del OECE viene pipe-delimited y en latin-1.
+        with open(RUTA_OSCE_LOCAL, "r", encoding="latin-1", errors="replace") as f:
+            cab = f.readline()
+        if cab.count("|") >= max(cab.count(";"), cab.count(",")):
+            sep = "|"
+        elif cab.count(";") >= cab.count(","):
+            sep = ";"
+        else:
+            sep = ","
         try:
-            df = pd.read_csv(RUTA_OSCE_LOCAL, sep=None, engine="python", encoding="utf-8")
+            df = pd.read_csv(RUTA_OSCE_LOCAL, sep=sep, dtype=str, encoding="utf-8", on_bad_lines="skip")
         except Exception:
-            df = pd.read_csv(RUTA_OSCE_LOCAL, sep=None, engine="python", encoding="latin-1")
-        cols = {c.lower(): c for c in df.columns}
+            df = pd.read_csv(RUTA_OSCE_LOCAL, sep=sep, dtype=str, encoding="latin-1", on_bad_lines="skip")
 
         def pick(*claves):
+            # prioridad por orden de claves (no por orden de columnas)
             for k in claves:
-                for low, orig in cols.items():
-                    if k in low:
-                        return orig
+                for c in df.columns:
+                    if k in c.upper():
+                        return c
             return None
 
-        c_ruc = pick("ruc")
-        c_razon = pick("razon", "razón", "nombre", "proveedor")
-        c_tipo = pick("tipo", "sancion", "sanción")
+        c_ruc = pick("RUC")
+        c_razon = pick("NOMBRE", "RAZON", "RAZÓN", "PROVEEDOR", "DENOMINA")
+        c_motivo = pick("DE_MOTIVO", "DESCRIP", "MOTIVO", "INFRACCION", "SANCION")
+        c_ini = pick("FECHA_INICIO", "INICIO")
+        c_fin = pick("FECHA_FIN", "FIN")
+        c_res = pick("RESOL")
         if not c_ruc:
             print("[OSCE] no encontré columna RUC -> uso ejemplo")
             return _osce_ejemplo()
 
         out = pd.DataFrame()
         out["ruc"] = df[c_ruc].astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
-        out["razon_social"] = df[c_razon] if c_razon else ""
-        out["tipo_sancion"] = df[c_tipo] if c_tipo else "INHABILITACION"
-        out["vigente"] = True  # el dataset "vigente" lista solo sanciones activas
-        out["fecha_inicio"] = None
-        out["fecha_fin"] = None
-        out["resolucion"] = ""
-        out["origen"] = "OSCE-datosabiertos"
-        out = out[out["ruc"].str.len() == 11]
+        out["razon_social"] = df[c_razon].fillna("") if c_razon else ""
+        out["tipo_sancion"] = "INHABILITACION"  # el dataset es "inhabilitación vigente"
+        out["motivo"] = df[c_motivo].fillna("").str.slice(0, 300) if c_motivo else ""
+        out["vigente"] = True
+        out["fecha_inicio"] = df[c_ini] if c_ini else None
+        out["fecha_fin"] = df[c_fin] if c_fin else None
+        out["resolucion"] = df[c_res].fillna("") if c_res else ""
+        out["origen"] = "OSCE-OECE"
+        out = out[out["ruc"].str.len() == 11].reset_index(drop=True)
         print(f"[OSCE] cargado real: {len(out)} filas")
         return out
     except Exception as e:  # noqa: BLE001
@@ -268,7 +292,13 @@ def construir_duckdb(db_path: str = DB_PATH) -> None:
     _ensure_dirs()
     ssco = descargar_ssco()
     osce = descargar_osce()
-    padron = _padron_ejemplo()
+    padron_local = next((p for p in RUTA_PADRON_CANDIDATAS if os.path.exists(p)), None)
+    if padron_local:
+        rucs_obj = set(ssco["ruc"]) | set(osce["ruc"])
+        padron = muestrear_padron(padron_local, rucs_objetivo=rucs_obj)
+    else:
+        print("[padron] sin archivo local en data/raw -> uso filas de ejemplo")
+        padron = _padron_ejemplo()
 
     con = duckdb.connect(db_path)
     for nombre, df in [("ssco", ssco), ("osce", osce), ("padron", padron)]:
@@ -282,6 +312,127 @@ def construir_duckdb(db_path: str = DB_PATH) -> None:
         print(f"  {nombre:8s}: {n} filas")
     con.close()
     print(f"\nBase escrita en {db_path}")
+
+
+# --------------------------------------------------------------------------- #
+# Muestreo del padrón (memory-safe, por chunks) — se corre OFFLINE
+# --------------------------------------------------------------------------- #
+def _abrir_padron_texto(ruta: str):
+    """Devuelve (stream_texto, handle_a_cerrar) del padrón. Acepta .zip o .txt.
+
+    No extrae el ZIP a disco ni lo carga entero en memoria: lo lee como stream.
+    """
+    if ruta.lower().endswith(".zip"):
+        zf = zipfile.ZipFile(ruta)
+        interno = max(zf.infolist(), key=lambda i: i.file_size).filename
+        binario = zf.open(interno, "r")
+        return io.TextIOWrapper(binario, encoding="latin-1", errors="replace"), zf
+    return open(ruta, "r", encoding="latin-1", errors="replace"), None
+
+
+def _detectar_columnas_padron(ruta: str):
+    """Lee SOLO la cabecera para detectar el separador y las columnas clave."""
+    stream, handle = _abrir_padron_texto(ruta)
+    try:
+        cabecera = stream.readline().rstrip("\r\n")
+    finally:
+        stream.close()
+        if handle:
+            handle.close()
+    sep = "|" if cabecera.count("|") >= cabecera.count(",") else ","
+    cols = [c.strip() for c in cabecera.split(sep)]
+
+    def buscar(*claves):
+        for c in cols:
+            cu = c.upper()
+            if any(k in cu for k in claves):
+                return c
+        return None
+
+    mapa = {
+        "ruc": buscar("RUC"),
+        "razon": buscar("RAZON", "RAZÓN", "NOMBRE"),
+        "estado": buscar("ESTADO"),
+        "condicion": buscar("CONDIC", "DOMICIL"),
+        "departamento": buscar("DEPARTAMENTO"),
+    }
+    return sep, mapa
+
+
+def muestrear_padron(ruta: str, rucs_objetivo=None, n_muestra: int = N_MUESTRA_PADRON,
+                     chunksize: int = 200_000) -> pd.DataFrame:
+    """Extrae una muestra ligera del padrón reducido leyendo por chunks.
+
+    Incluye (a) TODAS las filas cuyo RUC esté en `rucs_objetivo` (enriquece a los
+    SSCO/OSCE con su estado/condición real) y (b) hasta `n_muestra` empresas
+    ACTIVAS y HABIDAS como casos verdes. Nunca carga el archivo completo en RAM.
+    """
+    rucs_objetivo = set(rucs_objetivo or [])
+    sep, mapa = _detectar_columnas_padron(ruta)
+    c_ruc = mapa["ruc"]
+    if not c_ruc:
+        print("[padron] no se detectó la columna RUC -> uso ejemplos")
+        return _padron_ejemplo()
+
+    usecols = [c for c in (c_ruc, mapa["razon"], mapa["estado"],
+                           mapa["condicion"], mapa["departamento"]) if c]
+    stream, handle = _abrir_padron_texto(ruta)
+    matched, verdes, n_verdes = [], [], 0
+    try:
+        for chunk in pd.read_csv(stream, sep=sep, dtype=str, header=0,
+                                 chunksize=chunksize, on_bad_lines="skip",
+                                 usecols=usecols):
+            chunk.columns = [c.strip() for c in chunk.columns]
+            chunk[c_ruc] = chunk[c_ruc].astype(str).str.strip()
+
+            if rucs_objetivo:
+                m = chunk[chunk[c_ruc].isin(rucs_objetivo)]
+                if len(m):
+                    matched.append(m)
+
+            if n_verdes < n_muestra:
+                cand = chunk
+                if mapa["estado"]:
+                    act = cand[mapa["estado"]].astype(str).str.upper()
+                    cand = cand[act.str.contains("ACTIVO", na=False)]
+                if mapa["condicion"]:
+                    cond = cand[mapa["condicion"]].astype(str).str.upper()
+                    cand = cand[cond.str.contains("HABIDO", na=False) & ~cond.str.contains("NO HABIDO", na=False)]
+                if len(cand):
+                    take = cand.head(n_muestra - n_verdes)
+                    verdes.append(take)
+                    n_verdes += len(take)
+
+            if n_verdes >= n_muestra and not rucs_objetivo:
+                break
+    finally:
+        stream.close()
+        if handle:
+            handle.close()
+
+    partes = []
+    if matched:
+        partes.append(pd.concat(matched))
+    if verdes:
+        partes.append(pd.concat(verdes))
+    if not partes:
+        return _padron_ejemplo()
+    bruto = pd.concat(partes).drop_duplicates(subset=[c_ruc])
+
+    out = pd.DataFrame()
+    out["ruc"] = bruto[c_ruc]
+    out["razon_social"] = bruto[mapa["razon"]] if mapa["razon"] else ""
+    out["estado"] = bruto[mapa["estado"]] if mapa["estado"] else ""
+    out["condicion"] = bruto[mapa["condicion"]] if mapa["condicion"] else ""
+    out["departamento"] = (
+        bruto[mapa["departamento"]].astype(str).str.upper() if mapa["departamento"] else ""
+    )
+    out["fecha_inscripcion"] = None
+    out["origen"] = "SUNAT-padron"
+    out = out[out["ruc"].str.len() == 11].reset_index(drop=True)
+    print(f"[padron] muestra: {len(out)} filas "
+          f"({len(pd.concat(matched)) if matched else 0} SSCO/OSCE enriquecidos)")
+    return out
 
 
 if __name__ == "__main__":
