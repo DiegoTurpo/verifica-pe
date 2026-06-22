@@ -6,8 +6,8 @@
 Founder (solo founder): **Diego Turpo de la Cruz**.
 
 - 🌐 **Demo en vivo:** **<https://verifica-pe-decxqbd2bdqkst72icv6qr.streamlit.app>** — ingresa un RUC; no requiere instalar nada ni iniciar sesión.
-- 🎥 **Video demo (2-3 min):** _próximamente_
-- 📊 **Pitch deck:** _próximamente en [`docs/`](docs/)_
+- 🎥 **Video demo (2-3 min):** ver [`docs/video_demo.md`](docs/video_demo.md)
+- 📊 **Pitch deck:** [`docs/pitch_deck.pdf`](docs/pitch_deck.pdf)  ·  📐 **Arquitectura:** [`docs/arquitectura.png`](docs/arquitectura.png)  ·  🔎 **Evidencia:** [`docs/research/`](docs/research/)
 
 ---
 
@@ -17,6 +17,8 @@ Según SUNAT (relación al 31-dic-2025), **78 empresas fantasma (SSCO)** emitier
 
 La información que delata a estas empresas **ya es pública y gratuita**, pero está **fragmentada en seis portales que nadie cruza**. Verifica los cruza por ti.
 
+_Evidencia y fuentes completas en [`docs/research/`](docs/research/)._
+
 ## Cómo funciona
 
 Ingresas un RUC (escrito o desde una foto de factura) → Verifica arma el perfil cruzando fuentes públicas → devuelve un **semáforo de riesgo** con **reglas transparentes** y un **reporte en lenguaje claro**:
@@ -25,7 +27,7 @@ Ingresas un RUC (escrito o desde una foto de factura) → Verifica arma el perfi
 - 🟡 **Ámbar:** señales de precaución (p. ej. sanción OSCE histórica no vigente).
 - 🟢 **Verde:** activo, habido, sin SSCO ni sanciones.
 
-> El **nivel** del semáforo lo decide una lógica explícita y auditable (`core/riesgo.py`); el LLM solo **redacta** la explicación.
+> El semáforo se apoya en **reglas transparentes** (`core/riesgo.py`): figurar en SSCO, RUC no habido / de baja o inhabilitación OSCE vigente **fuerzan rojo**. Gemini decide el color usando esas reglas como criterio y redacta el reporte, con una **red de seguridad** que nunca rebaja a verde un caso confirmado (con *fallback* por reglas si no hay clave o falla la API).
 
 ## Arquitectura
 
@@ -34,12 +36,12 @@ Motor de verificación **desacoplado** (Python puro): `verificar_ruc(ruc) -> Rep
 ```
 [Streamlit]  --verificar_ruc()-->  [Motor de verificación]
                                         |--> [DuckDB] padrón RUC + SSCO + OSCE (lectura cacheada)
-                                        \--> [Gemini] redacta el reporte
+                                        \--> [Gemini] decide el color + redacta
   [OCR Gemini multimodal]  foto factura --> RUC --> Motor
 [data/actualizar_datos.py]  descargas SUNAT + scraper OSCE  (offline, fuera del demo)
 ```
 
-_Diagrama detallado: `docs/arquitectura.png` (próximamente)._
+![Arquitectura de Verifica](docs/arquitectura.png)
 
 ## Herramientas del curso usadas
 
@@ -66,11 +68,11 @@ Consigue una API key gratis de Gemini en <https://aistudio.google.com/apikey>.
 ```
 verifica-pe/
 ├── app/        # interfaz Streamlit (input RUC + subir factura)
-├── core/       # motor: verificador, fuentes (DuckDB), riesgo (reglas), reporte (LLM)
-├── ai/         # OCR con Gemini multimodal + prompts
+├── core/       # motor: verificador, fuentes (DuckDB), riesgo (reglas), reporte (LLM), pdf
+├── ai/         # OCR con Gemini multimodal (ocr.py)
 ├── data/       # actualizar_datos.py (offline) + verifica.duckdb (muestra ligera)
-├── docs/       # pitch deck, diagrama, video, research/ (evidencia del problema)
-└── notebooks/  # exploracion.ipynb (EDA de las 3 fuentes)
+├── docs/       # pitch_deck.pdf, arquitectura.png, video_demo.md, research/ (evidencia)
+└── tests/      # pruebas del motor (pytest)
 ```
 
 ## Datos y fuentes
