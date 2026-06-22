@@ -37,6 +37,11 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; VerificaBot/1.0)"}
 # Fuente oficial SSCO (SUNAT). Excel único, actualizado el último día de cada mes.
 URL_SSCO = "https://www.sunat.gob.pe/padronesnotificaciones/ssco/sujesincapacidadOperativa.xlsx"
 
+# Fuente OSCE/OECE: pega aquí la URL DIRECTA del CSV (botón "Ir al recurso" del dataset
+# "Proveedores sancionados con inhabilitación vigente" en datosabiertos.gob.pe).
+# Si queda vacía, se usa el último CSV descargado en data/raw/osce.csv.
+URL_OSCE = ""
+
 # NOTA_OSCE: el OSCE pasó a ser OECE y sus URLs de consulta antiguas ya no responden.
 # La relación de proveedores sancionados/inhabilitados se publica en la Plataforma
 # Nacional de Datos Abiertos (https://www.datosabiertos.gob.pe — busca "proveedores
@@ -197,11 +202,24 @@ def _osce_ejemplo() -> pd.DataFrame:
 
 
 def descargar_osce() -> pd.DataFrame:
-    """Carga OSCE real desde data/raw/osce.csv si existe; si no, usa el ejemplo.
+    """Actualiza y carga el OSCE/OECE.
 
-    Ver NOTA_OSCE arriba. El normalizador es flexible: busca columnas que
-    parezcan RUC / razón social / tipo de sanción para tolerar cambios de formato.
+    1) Si URL_OSCE está configurada, descarga el CSV fresco a data/raw/osce.csv.
+    2) Si no, usa el último CSV descargado (data/raw/osce.csv) -> la "caché".
+    3) Si no hay ninguno, cae a filas de ejemplo.
+    Detecta el separador (pipe) y mapea columnas por nombre.
     """
+    _ensure_dirs()
+    if URL_OSCE:
+        try:
+            r = requests.get(URL_OSCE, headers=HEADERS, timeout=120)
+            r.raise_for_status()
+            with open(RUTA_OSCE_LOCAL, "wb") as f:
+                f.write(r.content)
+            print(f"[OSCE] descargado: {len(r.content):,} bytes")
+        except Exception as e:  # noqa: BLE001
+            print(f"[OSCE] descarga automática falló ({e}); uso copia local si existe")
+
     if not os.path.exists(RUTA_OSCE_LOCAL):
         print("[OSCE] sin data/raw/osce.csv -> uso filas de ejemplo")
         return _osce_ejemplo()
