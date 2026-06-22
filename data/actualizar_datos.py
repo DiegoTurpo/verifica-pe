@@ -397,7 +397,15 @@ def muestrear_padron(ruta: str, rucs_objetivo=None, n_muestra: int = N_MUESTRA_P
     usecols = [c for c in (c_ruc, mapa["razon"], mapa["estado"],
                            mapa["condicion"], mapa["departamento"]) if c]
     stream, handle = _abrir_padron_texto(ruta)
-    matched, verdes, n_verdes = [], [], 0
+    # Muestreo ESTRATIFICADO: además de los verdes, una cuota de cada estado
+    # "problema" para que el semáforo tenga ejemplos reales de cada color (rojo por
+    # condición o estado, y ámbar) aunque NO estén en SSCO/OSCE.
+    CUOTA = 1500
+    buckets = {k: [] for k in ("verde", "no_habido", "baja", "suspension", "no_hallado")}
+    topes = {"verde": n_muestra, "no_habido": CUOTA, "baja": CUOTA,
+             "suspension": CUOTA, "no_hallado": CUOTA}
+    nb = {k: 0 for k in buckets}
+    matched = []
     try:
         for chunk in pd.read_csv(stream, sep=sep, dtype=str, header=0,
                                  chunksize=chunksize, on_bad_lines="skip",
@@ -410,31 +418,39 @@ def muestrear_padron(ruta: str, rucs_objetivo=None, n_muestra: int = N_MUESTRA_P
                 if len(m):
                     matched.append(m)
 
-            if n_verdes < n_muestra:
-                cand = chunk
-                if mapa["estado"]:
-                    act = cand[mapa["estado"]].astype(str).str.upper()
-                    cand = cand[act.str.contains("ACTIVO", na=False)]
-                if mapa["condicion"]:
-                    cond = cand[mapa["condicion"]].astype(str).str.upper()
-                    cand = cand[cond.str.contains("HABIDO", na=False) & ~cond.str.contains("NO HABIDO", na=False)]
-                if len(cand):
-                    take = cand.head(n_muestra - n_verdes)
-                    verdes.append(take)
-                    n_verdes += len(take)
+            est = chunk[mapa["estado"]].astype(str).str.upper() if mapa["estado"] else None
+            cond = chunk[mapa["condicion"]].astype(str).str.upper() if mapa["condicion"] else None
+            no_hab = cond.str.contains("NO HABIDO", na=False) if cond is not None else None
+            masks = {
+                "verde": ((est.str.contains("ACTIVO", na=False) if est is not None else True)
+                          & ((cond.str.contains("HABIDO", na=False) & ~no_hab) if cond is not None else True)),
+                "no_habido": no_hab,
+                "baja": est.str.contains("BAJA", na=False) if est is not None else None,
+                "suspension": est.str.contains("SUSPENSION", na=False) if est is not None else None,
+                "no_hallado": ((cond.str.contains("NO HALLADO", na=False)
+                                | cond.str.contains("PENDIENTE", na=False)) if cond is not None else None),
+            }
+            for k, mask in masks.items():
+                if mask is None or nb[k] >= topes[k]:
+                    continue
+                sub = chunk[mask].head(topes[k] - nb[k])
+                if len(sub):
+                    buckets[k].append(sub)
+                    nb[k] += len(sub)
 
-            if n_verdes >= n_muestra and not rucs_objetivo:
+            if not rucs_objetivo and all(nb[k] >= topes[k] for k in buckets):
                 break
     finally:
         stream.close()
         if handle:
             handle.close()
 
-    partes = []
+    partes = [pd.concat(v) for v in buckets.values() if v]
+    n_enriq = 0
     if matched:
-        partes.append(pd.concat(matched))
-    if verdes:
-        partes.append(pd.concat(verdes))
+        m_all = pd.concat(matched)
+        n_enriq = len(m_all)
+        partes.append(m_all)
     if not partes:
         return _padron_ejemplo()
     bruto = pd.concat(partes).drop_duplicates(subset=[c_ruc])
@@ -450,8 +466,9 @@ def muestrear_padron(ruta: str, rucs_objetivo=None, n_muestra: int = N_MUESTRA_P
     out["fecha_inscripcion"] = None
     out["origen"] = "SUNAT-padron"
     out = out[out["ruc"].str.len() == 11].reset_index(drop=True)
-    print(f"[padron] muestra: {len(out)} filas "
-          f"({len(pd.concat(matched)) if matched else 0} SSCO/OSCE enriquecidos)")
+    print(f"[padron] muestra: {len(out)} filas (enriquecidos={n_enriq}; "
+          f"verde={nb['verde']} no_habido={nb['no_habido']} baja={nb['baja']} "
+          f"susp={nb['suspension']} no_hallado={nb['no_hallado']})")
     return out
 
 
