@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
 
+from ai.ocr import extraer_ruc
 from core.reporte import generar_reporte, listar_modelos
 from core.verificador import verificar_ruc
 
@@ -104,6 +105,20 @@ st.caption("Prueba con un caso real:")
 for col, (etiqueta, valor) in zip(st.columns(len(EJEMPLOS)), EJEMPLOS):
     if col.button(etiqueta, use_container_width=True):
         st.session_state.ruc = valor
+
+foto = st.file_uploader("…o sube una foto de la factura (extraigo el RUC con IA)",
+                        type=["png", "jpg", "jpeg"])
+if foto is not None:
+    _fid = getattr(foto, "file_id", None) or f"{foto.name}-{getattr(foto, 'size', '')}"
+    if st.session_state.get("_foto_id") != _fid:
+        st.session_state["_foto_id"] = _fid
+        with st.spinner("Leyendo el RUC de la factura…"):
+            _ruc_ocr = extraer_ruc(foto.getvalue(), foto.type)
+        if _ruc_ocr:
+            st.session_state.ruc = _ruc_ocr
+            st.success(f"RUC detectado en la factura: **{_ruc_ocr}**")
+        else:
+            st.warning("No pude leer un RUC en la imagen. Escríbelo manualmente abajo.")
 
 ruc = st.text_input("RUC (11 dígitos)", key="ruc", max_chars=11,
                     placeholder="Ej. 20607648272")
