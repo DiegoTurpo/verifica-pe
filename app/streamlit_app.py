@@ -13,9 +13,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
 
+from core.reporte import generar_reporte
 from core.verificador import verificar_ruc
 
 st.set_page_config(page_title="Verifica", page_icon="🛡️", layout="centered")
+
+# En Streamlit Cloud la API key de Gemini vive en Secrets; la exponemos como variable
+# de entorno para que core.reporte la lea (sin acoplar el core a Streamlit).
+try:
+    if "GEMINI_API_KEY" in st.secrets:
+        os.environ.setdefault("GEMINI_API_KEY", st.secrets["GEMINI_API_KEY"])
+except Exception:
+    pass
 
 # RUCs REALES de la muestra, uno por color, para el demo en vivo.
 EJEMPLOS = [
@@ -28,35 +37,40 @@ EJEMPLOS = [
 ICONO = {"ROJO": "🔴", "AMBAR": "🟡", "VERDE": "🟢"}
 
 
-def _mostrar(rep) -> None:
-    if rep.nivel == "INVALIDO":
+def _mostrar(rep, reporte) -> None:
+    nivel = reporte.nivel
+    if nivel == "INVALIDO":
         st.info("⚠️ El RUC debe tener **11 dígitos** numéricos.")
         return
-    if rep.nivel == "DESCONOCIDO":
+    if nivel == "DESCONOCIDO":
         st.info(
             f"⚪ No encontramos el RUC **{rep.ruc}** en la muestra del demo. "
             "En producción se consultaría el padrón completo en la nube.")
         return
 
     titular = rep.razon_social or f"RUC {rep.ruc}"
-    if rep.nivel == "ROJO":
+    if nivel == "ROJO":
         st.error(f"🔴 **RIESGO ALTO** — {titular}")
-    elif rep.nivel == "AMBAR":
+    elif nivel == "AMBAR":
         st.warning(f"🟡 **PRECAUCIÓN** — {titular}")
     else:
         st.success(f"🟢 **SIN ALERTAS** — {titular}")
 
-    st.markdown("##### ¿Por qué?")
-    for s in rep.senales:
-        st.markdown(
-            f"{ICONO.get(s.nivel, '•')} {s.mensaje}  \n"
-            f"<span style='color:gray;font-size:0.8em'>fuente: {s.fuente}</span>",
-            unsafe_allow_html=True)
+    # Reporte en lenguaje claro (Gemini; o reglas si no hay key / falla).
+    st.markdown(reporte.texto)
+    if reporte.observaciones:
+        st.markdown("**Observaciones adicionales:**")
+        for o in reporte.observaciones:
+            st.markdown(f"- {o}")
 
-    with st.expander("Ver detalle y fuentes"):
+    with st.expander("Criterios detectados y fuentes"):
+        for s in rep.senales:
+            st.markdown(
+                f"{ICONO.get(s.nivel, '•')} {s.mensaje}  \n"
+                f"<span style='color:gray;font-size:0.8em'>fuente: {s.fuente}</span>",
+                unsafe_allow_html=True)
+        st.markdown("---")
         st.markdown(f"- **RUC:** {rep.ruc}")
-        if rep.razon_social:
-            st.markdown(f"- **Razón social:** {rep.razon_social}")
         if rep.estado:
             st.markdown(f"- **Estado (SUNAT):** {rep.estado}")
         if rep.condicion:
@@ -65,6 +79,7 @@ def _mostrar(rep) -> None:
             st.markdown(f"- **Departamento:** {rep.departamento}")
         st.markdown(f"- **En lista SSCO:** {'sí' if rep.en_ssco else 'no'}")
         st.markdown(f"- **Sanciones OSCE registradas:** {len(rep.osce)}")
+        st.caption(f"Reporte generado por: {reporte.motor}")
 
 
 st.title("🛡️ Verifica")
@@ -86,7 +101,8 @@ ruc = st.text_input("RUC (11 dígitos)", key="ruc", max_chars=11,
 st.button("Verificar", type="primary", use_container_width=True)
 
 if ruc and ruc.strip():
-    _mostrar(verificar_ruc(ruc))
+    rep = verificar_ruc(ruc)
+    _mostrar(rep, generar_reporte(rep))
 
 st.divider()
 st.caption(
