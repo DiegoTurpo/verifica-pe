@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
 
-from core.reporte import generar_reporte
+from core.reporte import generar_reporte, listar_modelos
 from core.verificador import verificar_ruc
 
 st.set_page_config(page_title="Verifica", page_icon="🛡️", layout="centered")
@@ -104,6 +104,12 @@ st.button("Verificar", type="primary", use_container_width=True)
 if ruc and ruc.strip():
     rep = verificar_ruc(ruc)
     _mostrar(rep, generar_reporte(rep))
+
+with st.expander("🔧 Diagnóstico Gemini"):
+    st.caption("Lista los modelos que tu API key puede usar, para fijar GEMINI_MODEL.")
+    if st.button("Listar modelos disponibles para mi key"):
+        for nombre in listar_modelos():
+            st.markdown(f"- `{nombre}`")
 
 st.divider()
 st.caption(
