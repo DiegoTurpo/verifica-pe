@@ -176,20 +176,20 @@ def _osce_ejemplo() -> pd.DataFrame:
     filas = [
         # Inhabilitación VIGENTE -> dispara ROJO
         (_mk_ruc("2050010001"), "CONSTRUCTORA EJEMPLO INHABILITADA S.A.C.",
-         "INHABILITACION", True, "2025-02-01", "2027-02-01",
-         "Resolución TCE N° 0001-2025"),
+         "INHABILITACION", "Contratar con el Estado estando impedido", True,
+         "2025-02-01", "2027-02-01", "Resolución TCE N° 0001-2025"),
         # Inhabilitación NO vigente (histórica) -> dispara ÁMBAR
         (_mk_ruc("2050010002"), "SERVICIOS EJEMPLO SANCIONADO E.I.R.L.",
-         "INHABILITACION", False, "2019-05-01", "2021-05-01",
-         "Resolución TCE N° 0123-2019"),
+         "INHABILITACION", "Presentar documentos falsos o adulterados", False,
+         "2019-05-01", "2021-05-01", "Resolución TCE N° 0123-2019"),
         # Multa vigente -> señal de precaución (ÁMBAR)
         (_mk_ruc("2050010003"), "COMERCIAL EJEMPLO MULTADO S.A.",
-         "MULTA", True, "2024-08-01", None,
-         "Resolución TCE N° 0456-2024"),
+         "MULTA", "Presentar información inexacta", True,
+         "2024-08-01", None, "Resolución TCE N° 0456-2024"),
     ]
     df = pd.DataFrame(
         filas,
-        columns=["ruc", "razon_social", "tipo_sancion", "vigente",
+        columns=["ruc", "razon_social", "tipo_sancion", "motivo", "vigente",
                  "fecha_inicio", "fecha_fin", "resolucion"],
     )
     df["origen"] = "ejemplo"
@@ -207,36 +207,49 @@ def descargar_osce() -> pd.DataFrame:
         return _osce_ejemplo()
 
     try:
+        # El CSV oficial del OECE viene pipe-delimited y en latin-1.
+        with open(RUTA_OSCE_LOCAL, "r", encoding="latin-1", errors="replace") as f:
+            cab = f.readline()
+        if cab.count("|") >= max(cab.count(";"), cab.count(",")):
+            sep = "|"
+        elif cab.count(";") >= cab.count(","):
+            sep = ";"
+        else:
+            sep = ","
         try:
-            df = pd.read_csv(RUTA_OSCE_LOCAL, sep=None, engine="python", encoding="utf-8")
+            df = pd.read_csv(RUTA_OSCE_LOCAL, sep=sep, dtype=str, encoding="utf-8", on_bad_lines="skip")
         except Exception:
-            df = pd.read_csv(RUTA_OSCE_LOCAL, sep=None, engine="python", encoding="latin-1")
-        cols = {c.lower(): c for c in df.columns}
+            df = pd.read_csv(RUTA_OSCE_LOCAL, sep=sep, dtype=str, encoding="latin-1", on_bad_lines="skip")
 
         def pick(*claves):
+            # prioridad por orden de claves (no por orden de columnas)
             for k in claves:
-                for low, orig in cols.items():
-                    if k in low:
-                        return orig
+                for c in df.columns:
+                    if k in c.upper():
+                        return c
             return None
 
-        c_ruc = pick("ruc")
-        c_razon = pick("razon", "razón", "nombre", "proveedor")
-        c_tipo = pick("tipo", "sancion", "sanción")
+        c_ruc = pick("RUC")
+        c_razon = pick("NOMBRE", "RAZON", "RAZÓN", "PROVEEDOR", "DENOMINA")
+        c_motivo = pick("DE_MOTIVO", "DESCRIP", "MOTIVO", "INFRACCION", "SANCION")
+        c_ini = pick("FECHA_INICIO", "INICIO")
+        c_fin = pick("FECHA_FIN", "FIN")
+        c_res = pick("RESOL")
         if not c_ruc:
             print("[OSCE] no encontré columna RUC -> uso ejemplo")
             return _osce_ejemplo()
 
         out = pd.DataFrame()
         out["ruc"] = df[c_ruc].astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
-        out["razon_social"] = df[c_razon] if c_razon else ""
-        out["tipo_sancion"] = df[c_tipo] if c_tipo else "INHABILITACION"
-        out["vigente"] = True  # el dataset "vigente" lista solo sanciones activas
-        out["fecha_inicio"] = None
-        out["fecha_fin"] = None
-        out["resolucion"] = ""
-        out["origen"] = "OSCE-datosabiertos"
-        out = out[out["ruc"].str.len() == 11]
+        out["razon_social"] = df[c_razon].fillna("") if c_razon else ""
+        out["tipo_sancion"] = "INHABILITACION"  # el dataset es "inhabilitación vigente"
+        out["motivo"] = df[c_motivo].fillna("").str.slice(0, 300) if c_motivo else ""
+        out["vigente"] = True
+        out["fecha_inicio"] = df[c_ini] if c_ini else None
+        out["fecha_fin"] = df[c_fin] if c_fin else None
+        out["resolucion"] = df[c_res].fillna("") if c_res else ""
+        out["origen"] = "OSCE-OECE"
+        out = out[out["ruc"].str.len() == 11].reset_index(drop=True)
         print(f"[OSCE] cargado real: {len(out)} filas")
         return out
     except Exception as e:  # noqa: BLE001
