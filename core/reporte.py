@@ -21,7 +21,7 @@ import os
 from dataclasses import dataclass, field
 
 _SEV = {"VERDE": 0, "AMBAR": 1, "ROJO": 2}
-_MODELO_DEFAULT = "gemini-2.0-flash"  # configurable por la variable de entorno GEMINI_MODEL
+_MODELO_DEFAULT = "gemini-2.0-flash-lite"  # configurable por GEMINI_MODEL (alineado con ai/ocr.py)
 
 _CRITERIOS = """\
 Criterios del semáforo de riesgo:
@@ -39,7 +39,23 @@ class ReporteIA:
     nivel: str                    # color final (Gemini + red de seguridad, o reglas)
     texto: str                    # reporte en lenguaje claro
     observaciones: list = field(default_factory=list)
+    recomendacion: str = ""       # qué debe hacer el usuario (accionable)
     motor: str = "reglas"         # "gemini" | "reglas (fallback)"
+
+
+# Recomendación accionable por color (fallback y cuando la red de seguridad cambia el nivel).
+_RECOMENDACION = {
+    "ROJO": ("No uses sus comprobantes para sustentar crédito fiscal o gasto y evita "
+             "contratar con esta empresa. Si ya operaste con ella, consulta con tu contador."),
+    "AMBAR": ("Procede con cautela: pide documentación adicional (vigencia, comprobantes, "
+              "referencias) y verifica antes de contratar o pagar."),
+    "VERDE": ("Sin alertas en las fuentes consultadas. Puedes proceder con la diligencia "
+              "habitual de cualquier proveedor nuevo."),
+}
+
+
+def _recomendacion_reglas(nivel: str) -> str:
+    return _RECOMENDACION.get(nivel, "")
 
 
 def _perfil_texto(rep) -> str:
@@ -75,13 +91,16 @@ def _texto_reglas(rep) -> str:
 
 
 def _fallback(rep, motivo: str = "reglas (fallback)") -> ReporteIA:
-    return ReporteIA(nivel=rep.nivel, texto=_texto_reglas(rep), motor=motivo)
+    return ReporteIA(nivel=rep.nivel, texto=_texto_reglas(rep),
+                     recomendacion=_recomendacion_reglas(rep.nivel), motor=motivo)
 
 
 def _red_seguridad(rep, nivel_ia: str) -> str:
-    """No deja que un fraude confirmado por dato oficial baje de rojo."""
-    piso = "ROJO" if (rep.en_ssco or any(s.get("vigente") for s in rep.osce)) else "VERDE"
-    ia = nivel_ia if nivel_ia in _SEV else "VERDE"
+    """Las reglas transparentes son el PISO: Gemini puede SUBIR la severidad (si
+    observa un riesgo sustentado), pero NUNCA bajar de lo que dictan las reglas.
+    Así un NO HABIDO, una BAJA, un SSCO o un OSCE vigente jamás se rebajan a verde."""
+    piso = rep.nivel if rep.nivel in _SEV else "VERDE"
+    ia = nivel_ia if nivel_ia in _SEV else piso
     return max((ia, piso), key=lambda n: _SEV[n])
 
 
@@ -104,13 +123,15 @@ def generar_reporte(rep) -> ReporteIA:
             "para una MYPE o un contador. Decide el nivel del semáforo (ROJO, AMBAR o "
             "VERDE) usando ÚNICAMENTE los datos provistos y los criterios de abajo. "
             "Puedes añadir observaciones SOLO si están sustentadas en esos datos; no "
-            "inventes nada. Escribe en español claro y breve.\n\n" + _CRITERIOS)
+            "inventes nada. Da también una recomendación accionable (qué debería hacer "
+            "el usuario). Escribe en español claro y breve.\n\n" + _CRITERIOS)
 
         instruccion = (
             "Datos de la empresa:\n" + _perfil_texto(rep) + "\n\n"
             "Devuelve SOLO un JSON con esta forma exacta:\n"
             '{"nivel": "ROJO|AMBAR|VERDE", '
             '"reporte": "explicación clara de 2 a 4 frases para el usuario", '
+            '"recomendacion": "una sola frase accionable: qué debería hacer el usuario", '
             '"observaciones": ["dato extra sustentado en los datos", "..."]}')
 
         client = genai.Client(api_key=key)
@@ -124,10 +145,15 @@ def generar_reporte(rep) -> ReporteIA:
             ),
         )
         data = json.loads(resp.text)
-        nivel_final = _red_seguridad(rep, str(data.get("nivel", "")).upper())
+        nivel_ia = str(data.get("nivel", "")).upper()
+        nivel_final = _red_seguridad(rep, nivel_ia)
+        reco = str(data.get("recomendacion", "")).strip()
+        if not reco or nivel_final != nivel_ia:   # si la red de seguridad cambió el color
+            reco = _recomendacion_reglas(nivel_final)
         return ReporteIA(
             nivel=nivel_final,
             texto=str(data.get("reporte", "")).strip() or _texto_reglas(rep),
+            recomendacion=reco,
             observaciones=[str(o) for o in (data.get("observaciones") or [])][:5],
             motor="gemini",
         )
