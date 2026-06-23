@@ -37,8 +37,7 @@ except Exception:
     pass
 
 st.markdown("""<style>
-#MainMenu, footer {visibility: hidden;}
-.block-container {padding-top: 2.2rem;}
+.block-container {padding-top: 1.4rem;}
 .hero {background: linear-gradient(135deg,#00796b,#004d40); color:#fff;
        padding:26px 30px; border-radius:16px; margin-bottom:18px;}
 .hero h1 {margin:0; font-size:2.2rem; font-weight:800;}
@@ -48,7 +47,7 @@ st.markdown("""<style>
 .veredicto .vname {font-size:1.5rem; font-weight:800; color:#1f2937; margin-top:3px; line-height:1.2;}
 .veredicto .vruc {font-size:.9rem; color:#6b7280; margin-top:2px;}
 .reco {background:#e3f2fd; border-left:6px solid #1565c0; border-radius:10px;
-       padding:12px 16px; margin:12px 0; font-size:1.02rem;}
+       padding:12px 16px; margin:12px 0; font-size:1.02rem; color:#0d2c54;}
 </style>""", unsafe_allow_html=True)
 
 st.markdown(
