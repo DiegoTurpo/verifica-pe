@@ -175,22 +175,31 @@ slides.append(img)
 
 # 7 — Mercado
 img, d, y = base(7, "Mercado", "TAM / SAM / SOM")
-bullets(d, [
-    "TAM: ~2.3 millones de empresas formales en Perú (99.1% son MYPES).",
-    "SAM: MYPES de comercio y servicios con alta rotación de proveedores (cientos de miles).",
-    "SOM (12 meses): contadores (pagan y multiplican) + emprendedores en sus primeros 1-2 años.",
-], y + 6)
-caja(d, "Expansión por capas: contadores y emprendedores → resto de MYPES → empresas grandes vía API.", y + 6)
+yy = int(y) + 8
+for _sig, _desc in [
+    ("TAM", "~2.3 millones de empresas formales en Perú (99.1% son MYPES)."),
+    ("SAM", "MYPES de comercio y servicios con alta rotación de proveedores (cientos de miles)."),
+    ("SOM — 12 meses", "Contadores (pagan y multiplican) + emprendedores en sus primeros 1-2 años."),
+]:
+    d.text((80, yy), _sig, font=F(27, True), fill=TEAL)
+    yy += 40
+    for _ln in wrap(d, _desc, F(21, False), W - 200):
+        d.text((100, yy), _ln, font=F(21, False), fill=TINTA)
+        yy += 30
+    yy += 16
+caja(d, "Expansión por capas: contadores y emprendedores → resto de MYPES → empresas grandes vía API.", yy + 6)
 slides.append(img)
 
 # 8 — Modelo de negocio
 img, d, y = base(8, "Modelo de negocio", "SaaS con ancla de precio")
-bullets(d, [
-    "Free: 3 verificaciones/mes.   Pro S/39/mes: ilimitado (secuencial).   Contador S/99/mes: lote + multi-cliente.",
-    "Margen de contribución ~90% (Pro) y ~95% (Contador): datos públicos S/0, LLM centavos, hosting ~S/0.",
+y = bullets(d, [
+    "Free: 3 verificaciones al mes.",
+    "Pro — S/39/mes: verificaciones ilimitadas (una por consulta).",
+    "Contador — S/99/mes: ilimitadas + lote por Excel + panel multi-cliente.",
+    "Margen de contribución ~90% (Pro) y ~95% (Contador).",
 ], y + 6)
 caja(d, "Infocorp cobra S/39 por UNA consulta. Verifica da ilimitado al mismo precio — y cruza el "
-        "dato SSCO que el buró no mira.", y + 10)
+        "dato SSCO que el buró no mira.", y + 8)
 slides.append(img)
 
 # 9 — Competencia & moat
