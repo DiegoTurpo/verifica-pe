@@ -64,12 +64,13 @@ def base(n, kicker=None, titulo=None):
     return img, d, y + 20
 
 
-def bullets(d, items, y, size=30, gap=22, x=80, color=TINTA, dot=TEAL):
+def bullets(d, items, y, size=30, gap=22, x=80, color=TINTA, dot=TEAL, maxw=None):
     f = F(size, False)
+    mw = maxw if maxw else (W - x - 110)
     for it in items:
         d.ellipse([x, y + 11, x + 13, y + 24], fill=dot)
         ty = y
-        for ln in wrap(d, it, f, W - x - 110):
+        for ln in wrap(d, it, f, mw):
             d.text((x + 32, ty), ln, font=f, fill=color)
             ty += size + 7
         y = ty + gap
@@ -137,14 +138,14 @@ slides.append(img)
 
 # 2 · Founder
 img, d, y = base(2, "Founder", "Diego Turpo de la Cruz")
-imagen(img, d, "founder.png", W - 230, 168, maxw=320, maxh=320, base_dir=AQUI)  # foto opcional
+ph = imagen(img, d, "founder.png", W - 200, 160, maxw=300, maxh=430, base_dir=AQUI)  # foto opcional
 y = bullets(d, [
     "Estudiante de Economía (Universidad del Pacífico); foco en data science para problemas públicos peruanos.",
     "Founder-market fit: entiende por qué una factura irregular golpea el crédito fiscal (economía y finanzas).",
     "Sabe extraer y cruzar datos públicos dispersos, y construir con IA (LLMs, OCR, clasificadores).",
-], y + 6)
+], y + 6, maxw=1080 if ph else None)
 caja(d, "Solo founder con IA: Claude Code = CTO de backend · scrapers = equipo de datos · "
-        "LLM = analista de riesgo · Codex/Cursor = frontend.", y + 8)
+        "LLM = analista de riesgo · Codex/Cursor = frontend.", max(y, 160 + ph + 16) + 6)
 slides.append(img)
 
 # 3 · Problema
