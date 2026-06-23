@@ -15,7 +15,8 @@ SUAVE = (224, 242, 241)
 FDIR = r"C:\Windows\Fonts"
 DEMO = "verifica-pe-decxqbd2bdqkst72icv6qr.streamlit.app"
 REPO = "github.com/DiegoTurpo/verifica-pe"
-TOTAL = 13
+TOTAL = 15
+CAPS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "capturas")
 
 
 def F(sz, bold=True):
@@ -85,6 +86,18 @@ def caja(d, text, y, fill=SUAVE, borde=TEAL, tcolor=(0, 90, 80), size=33, pad=26
 def semaforo(d, x, y, r=16, gap=46):
     for i, c in enumerate((ROJO, AMBAR, VERDE)):
         d.ellipse([x + i * gap, y, x + i * gap + 2 * r, y + 2 * r], fill=c)
+
+
+def captura(img, d, fn, cap, cx, top, maxw=700, maxh=470):
+    """Pega una captura (centrada en cx) con su pie, escalada para caber."""
+    p = os.path.join(CAPS, fn)
+    if not os.path.exists(p):
+        return
+    im = Image.open(p).convert("RGB")
+    im.thumbnail((maxw, maxh))
+    img.paste(im, (int(cx - im.width / 2), top))
+    w = d.textlength(cap, font=F(17, False))
+    d.text((cx - w / 2, top + im.height + 8), cap, font=F(17, False), fill=(110, 110, 110))
 
 
 slides = []
@@ -223,7 +236,19 @@ caja(d, "Solo ~US$4k es infraestructura (mis datos son públicos): negocio capit
         "Hito que desbloquea: 1,000 contadores de pago → valida la ronda seed.", y + 8)
 slides.append(img)
 
-# 13 — Cierre
+# 13 — Capturas del flujo (1/2)
+img, d, y = base(13, "El producto en acción", "Ingresa un RUC o sube la factura")
+captura(img, d, "inicio.png", "Pantalla principal", 415, int(y) + 6)
+captura(img, d, "ocr.png", "OCR: la IA lee el RUC de la foto", 1185, int(y) + 6)
+slides.append(img)
+
+# 14 — Capturas del flujo (2/2)
+img, d, y = base(14, "El producto en acción", "Veredicto claro + reporte descargable")
+captura(img, d, "rojo.png", "Semáforo + métricas + recomendación", 415, int(y) + 6)
+captura(img, d, "pdf.png", "Reporte en PDF", 1185, int(y) + 6)
+slides.append(img)
+
+# 15 — Cierre
 img = Image.new("RGB", (W, H), "white"); d = ImageDraw.Draw(img)
 d.rectangle([0, 0, 18, H], fill=TEAL)
 d.text((90, 230), "Verifica", font=F(120), fill=TEAL)
